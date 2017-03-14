@@ -3,12 +3,42 @@ require 'facebook/messenger'
 include Facebook::Messenger
 
 Bot.on :message do |message|
-  message.id          # => 'mid.1457764197618:41d102a3e1ae206a38'
-  message.sender      # => { 'id' => '1008372609250235' }
-  message.seq         # => 73
-  message.sent_at     # => 2016-04-22 21:30:36 +0200
-  message.text        # => 'Hello, bot!'
-  message.attachments # => [ { 'type' => 'image', 'payload' => { 'url' => 'https://www.example.com/1.jpg' } } ]
+  user = User.find_or_create_by(facebook_id: message.sender['id'])
+  update = user.get_update
 
-  message.reply(text: 'Hello, human!')
+  if user.notification_time.empty?
+    message.reply(text: 'When you would like to receive notifications?')
+    return
+  end
+
+  if message.quick_reply && update.mood_missing?
+    update.mood = message.text
+    update.save
+    return
+  end
+
+  if message.text && update.message_missing?
+    update.message = message.text
+    update.save
+    return
+  end
+
+  if update.active?
+    message.reply(text: 'Do you want to submit update now?')
+    return
+  end
+end
+
+Bot.on :postback do |postback|
+  user = User.find_or_create_by(facebook_id: postback.sender['id'])
+
+  case message.payload
+    when 'SETUP_BOT'
+      postback.reply(text: 'Hello, I am your personal lifelog assistant, let me help you with setup procedure')
+    when 'RESET'
+      user.reset!
+      message.reply('Reset has been completed')
+    else
+      Rails.logger.warn('Unhandled postback')
+  end
 end
