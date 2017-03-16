@@ -3,41 +3,46 @@ require 'facebook/messenger'
 include Facebook::Messenger
 
 Bot.on :message do |message|
-  user = User.find_or_create_by(facebook_id: message.sender['id'])
-  update = user.get_update
-
-  if user.notification_time.empty?
-    message.reply(text: 'When you would like to receive notifications?')
-    return
+  if message.quick_reply && message.quick_reply.match?('time')
+    message.reply(text: 'Thank you I will notify you very soon, have a good and productive day!')
   end
 
-  if message.quick_reply && update.mood_missing?
-    update.mood = message.text
-    update.save
-    return
-  end
+  if message.quick_reply && message.quick_reply == 'setup_started'
+    User.find_or_create_by(facebook_id: message.sender['id'])
 
-  if message.text && update.message_missing?
-    update.message = message.text
-    update.save
-    return
-  end
-
-  if update.active?
-    message.reply(text: 'Do you want to submit update now?')
-    return
+    message.reply(
+        text: 'When should I ask you about your day?',
+        quick_replies: [
+            {
+                content_type: 'text',
+                title: 'Every evening',
+                payload: 'time_morning'
+            },
+            {
+                content_type: 'text',
+                title: 'Every evening',
+                payload: 'time_evening'
+            }
+        ])
   end
 end
 
 Bot.on :postback do |postback|
-  user = User.find_or_create_by(facebook_id: postback.sender['id'])
-
-  case message.payload
+  case postback.payload
     when 'SETUP_BOT'
-      postback.reply(text: 'Hello, I am your personal lifelog assistant, let me help you with setup procedure')
+      postback.reply(
+        text: 'Hello, I am your personal lifelog assistant, let me help you with setup procedure',
+        quick_replies: [
+          {
+            content_type: 'text',
+            title: 'I want to set you up',
+            payload: 'setup_started'
+          }
+        ]
+      )
     when 'RESET'
-      user.reset!
-      message.reply('Reset has been completed')
+      # TODO: we will implement reset functionality soon
+      postback.reply(text: 'Reset has been completed')
     else
       Rails.logger.warn('Unhandled postback')
   end
